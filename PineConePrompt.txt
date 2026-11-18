@@ -1,0 +1,42 @@
+You are an elite Principal Full-Stack AI Engineer & UI/UX Architect specializing in NestJS, Pinecone Vector Database, OpenAI APIs, React Native Expo Router, NativeWind, and React Native Reanimated.
+
+Context & Existing Workspace:
+I already have a working full-stack RAG mobile application inside my monorepo workspace (`backend/` with NestJS and `frontend/` with React Native Expo Router, NativeWind, and Reanimated). Currently, the backend uses Supabase (`pgvector`) for vector storage and similarity search.
+
+Objective:
+1. Migrate the Vector Database layer completely from Supabase `pgvector` to **Pinecone Vector Database** (`@pinecone-database/pinecone`) while keeping all existing RAG features, token optimizations, and security guardrails intact.
+2. Elevate the frontend UI/UX to an ultra-modern, flagship mobile AI experience.
+
+---
+
+### 1. VECTOR DATABASE MIGRATION (`backend/` - Supabase pgvector ➔ Pinecone):
+- **Remove Supabase Dependencies:** Cleanly remove Supabase client packages, SQL RPC logic, and Supabase environment variables, replacing them with the official Pinecone Node.js SDK (`@pinecone-database/pinecone`).
+- **Pinecone Index & Namespace Architecture:**
+  - Configure Pinecone connection using `PINECONE_API_KEY` and `PINECONE_INDEX_NAME` (dimension `1536` matching OpenAI `text-embedding-3-small`, metric `cosine`) strictly inside `backend/.env`.
+  - Use clean namespaces or metadata filtering (`documentId`, `documentName`, `pageNumber`, `chunkIndex`, `textSnippet`) so document deletion (`DELETE /rag/documents/:id`) and document listing (`GET /rag/documents`) work accurately and reliably.
+- **Ingestion & Retrieval Pipeline:**
+  - `POST /rag/upload`: Chunk uploaded PDFs (~600 chars with 100-char overlap), generate embeddings via `text-embedding-3-small`, and upsert vectors with rich metadata into Pinecone in optimized batches.
+  - `POST /rag/chat`: Embed user query, query Pinecone (`topK = 4`, filtering similarity score `> 0.72`), wrap retrieved text snippets inside strict `<retrieved_context>` XML delimiters, and stream the grounded response with exact source citations (`documentName`, `pageNumber`, `snippet`, `similarityScore`).
+- **Preserve Existing Security & Cost Engines:**
+  - Keep the Zero-Token Conversational Intent Router (0 OpenAI/Pinecone calls for greetings like "hi", "hello", "thanks"), normalized query caching, OWASP LLM Top 10 prompt injection sanitization, and `@nestjs/throttler` rate limiting fully operational.
+
+---
+
+### 2. FRONTEND UI/UX UPGRADE (`frontend/` - Flagship Polish):
+- **Elevated Visual Design (NativeWind):**
+  - Upgrade the Light & Dark Mode color palette with refined glassmorphic surfaces, subtle borders, smooth gradient accents, and crisp typography.
+  - Add an interactive **Vector Engine Status Pill** in the header (e.g., showing `Pinecone Vector DB • Active` and active indexed document count).
+- **Enhanced Micro-Interactions (React Native Reanimated):**
+  - Smooth spring animations for message entry, animated typing/streaming pulse indicator, haptic-style press feedback on buttons, and a sleek expandable bottom sheet/modal for inspecting Source Citation snippets and similarity match percentages.
+  - Add quick-tap **Suggested Starter Prompts** on empty chat screens based on uploaded documents.
+- **Zero Keyboard Overlap:**
+  - Ensure the floating chat composer smoothly avoids the keyboard on both iOS and Android without obscuring messages.
+
+---
+
+Deliverables:
+1. Cleanly refactored, complete, non-truncated TypeScript code for both `backend/` and `frontend/`.
+2. Updated `README.md` at the root with:
+   - Step-by-step instructions to create a free Pinecone Serverless Index (`1536` dimensions, `cosine` metric) and get `PINECONE_API_KEY`.
+   - Exact `npm install` / `npm uninstall` commands for migrating the backend cleanly.
+   - Updated `.env.example` templates and instructions to test live PDF upload and cited Pinecone RAG chat on a physical phone via Expo Go.
