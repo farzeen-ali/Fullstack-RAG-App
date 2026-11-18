@@ -1,16 +1,18 @@
 export type DocumentStatus = 'processing' | 'ready' | 'failed';
 
-export interface DocumentRow {
+/** Authoritative document metadata (vectors live in Pinecone). */
+export interface StoredDocument {
   id: string;
   name: string;
-  mime_type: string;
-  size_bytes: number;
-  page_count: number;
-  chunk_count: number;
-  indexed_chunks: number;
+  mimeType: string;
+  sizeBytes: number;
+  pageCount: number;
+  chunkCount: number;
+  indexedChunks: number;
   status: DocumentStatus;
-  error_message: string | null;
-  created_at: string;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface DocumentSummary {
@@ -38,7 +40,7 @@ export interface TextChunk {
 }
 
 export interface MatchedChunk {
-  id: number;
+  id: string;
   document_id: string;
   document_name: string;
   page_number: number;
@@ -88,17 +90,3 @@ export type ChatEvent =
   | { event: 'done'; data: ChatFooter }
   | { event: 'error'; data: { message: string } };
 
-export function toDocumentSummary(row: DocumentRow): DocumentSummary {
-  return {
-    id: row.id,
-    name: row.name,
-    mimeType: row.mime_type,
-    sizeBytes: row.size_bytes,
-    pageCount: row.page_count,
-    chunkCount: row.chunk_count,
-    indexedChunks: row.indexed_chunks,
-    status: row.status,
-    errorMessage: row.error_message,
-    createdAt: row.created_at,
-  };
-}

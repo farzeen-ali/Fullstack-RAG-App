@@ -4,6 +4,7 @@ import { Pressable, Text, TextInput, View } from 'react-native';
 import { KeyboardStickyView } from 'react-native-keyboard-controller';
 import Animated, { ZoomIn, ZoomOut } from 'react-native-reanimated';
 
+import { GlassSurface } from '@/components/ui/glass-surface';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { MAX_QUESTION_LENGTH } from '@/lib/config';
@@ -49,8 +50,9 @@ export function Composer({
 
   return (
     <KeyboardStickyView offset={{ closed: 0, opened: openedOffset }}>
-      <View
-        className="border-t border-zinc-200/80 bg-zinc-50 px-3 pt-2 dark:border-ink-800 dark:bg-ink-900"
+      <GlassSurface
+        intensity={50}
+        className="border-t border-zinc-200/50 px-3 pt-2 dark:border-white/5"
         style={{ paddingBottom: bottomPadding }}>
         <Pressable
           onPress={onScopePress}
@@ -63,7 +65,7 @@ export function Composer({
           <Ionicons name="chevron-forward" size={12} color={palette.subtle} />
         </Pressable>
 
-        <View className="flex-row items-end rounded-[26px] border border-zinc-200 bg-white py-1.5 pl-4 pr-1.5 dark:border-ink-700 dark:bg-ink-800">
+        <GlassSurface intensity={30} className="flex-row items-end rounded-[26px] border border-zinc-200/70 py-1.5 pl-4 pr-1.5 dark:border-white/10">
           <TextInput
             value={text}
             onChangeText={setText}
@@ -103,14 +105,14 @@ export function Composer({
               </PressableScale>
             </Animated.View>
           )}
-        </View>
+        </GlassSurface>
 
         {text.length >= COUNTER_THRESHOLD ? (
           <Text className="mr-3 mt-1 self-end text-[11px] text-zinc-500 dark:text-zinc-400">
             {text.length}/{MAX_QUESTION_LENGTH}
           </Text>
         ) : null}
-      </View>
+      </GlassSurface>
     </KeyboardStickyView>
   );
 }

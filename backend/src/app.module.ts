@@ -6,7 +6,8 @@ import { AppController } from './app.controller';
 import { EnvironmentVariables, validateEnv } from './config/env.validation';
 import { OpenAiModule } from './openai/openai.module';
 import { RagModule } from './rag/rag.module';
-import { SupabaseModule } from './supabase/supabase.module';
+import { PineconeModule } from './pinecone/pinecone.module';
+import { StorageModule } from './storage/storage.module';
 
 @Module({
   imports: [
@@ -27,7 +28,8 @@ import { SupabaseModule } from './supabase/supabase.module';
         ],
       }),
     }),
-    SupabaseModule,
+    StorageModule,
+    PineconeModule,
     OpenAiModule,
     RagModule,
   ],

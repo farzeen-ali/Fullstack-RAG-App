@@ -1,21 +1,18 @@
 import {
   Injectable,
-  InternalServerErrorException,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { SupabaseService } from '../supabase/supabase.service';
+import { ConfigService } from '@nestjs/config';
+import { EnvironmentVariables } from '../config/env.validation';
+import { ChunkVectorUpsert, PineconeService } from '../pinecone/pinecone.service';
+import { DocumentStoreService } from '../storage/document-store.service';
 import { QueryCacheService } from './cost/query-cache.service';
 import {
-  DocumentRow,
   DocumentStatus,
   DocumentSummary,
   MatchedChunk,
-  toDocumentSummary,
 } from './rag.types';
-
-const DOCUMENT_COLUMNS =
-  'id, name, mime_type, size_bytes, page_count, chunk_count, indexed_chunks, status, error_message, created_at';
 
 export interface ChunkInsert {
   document_id: string;
@@ -24,8 +21,11 @@ export interface ChunkInsert {
   page_number: number;
   content: string;
   embedding: number[];
+  /** Text sent to the vector index (OpenAI embed input or Pinecone embed field). */
+  index_text: string;
 }
 
+/** Thrown when a document is deleted while background indexing is still running. */
 export class DocumentGoneError extends Error {}
 
 @Injectable()
@@ -33,57 +33,50 @@ export class DocumentsService {
   private readonly logger = new Logger(DocumentsService.name);
 
   constructor(
-    private readonly supabase: SupabaseService,
+    private readonly store: DocumentStoreService,
+    private readonly pinecone: PineconeService,
     private readonly cache: QueryCacheService,
+    private readonly config: ConfigService<EnvironmentVariables, true>,
   ) {}
 
-  private get db() {
-    return this.supabase.client;
+  list(): Promise<DocumentSummary[]> {
+    return Promise.resolve(this.store.list());
   }
 
-  async list(): Promise<DocumentSummary[]> {
-    const { data, error } = await this.db
-      .from('documents')
-      .select(DOCUMENT_COLUMNS)
-      .order('created_at', { ascending: false })
-      .limit(200);
-    if (error) this.fail('list documents', error);
-    return (data as DocumentRow[]).map(toDocumentSummary);
-  }
-
-  async create(input: {
+  create(input: {
     name: string;
     mimeType: string;
     sizeBytes: number;
     pageCount: number;
     chunkCount: number;
   }): Promise<DocumentSummary> {
-    const { data, error } = await this.db
-      .from('documents')
-      .insert({
-        name: input.name,
-        mime_type: input.mimeType,
-        size_bytes: input.sizeBytes,
-        page_count: input.pageCount,
-        chunk_count: input.chunkCount,
-        status: 'processing',
-      })
-      .select(DOCUMENT_COLUMNS)
-      .single();
-    if (error) this.fail('create document', error);
-    return toDocumentSummary(data);
+    return this.store.create(input);
   }
 
   async insertChunks(rows: ChunkInsert[], indexedSoFar: number): Promise<void> {
-    const { error } = await this.db.from('document_chunks').insert(rows);
-    if (error) {
-      // 23503 = foreign_key_violation: the document was deleted mid-ingestion.
-      if (error.code === '23503') throw new DocumentGoneError();
-      this.fail('insert chunks', error);
+    const documentId = rows[0].document_id;
+    if (!this.store.get(documentId)) {
+      throw new DocumentGoneError();
     }
-    await this.updateStatus(rows[0].document_id, 'processing', {
-      indexed_chunks: indexedSoFar,
-    });
+
+    const upserts: ChunkVectorUpsert[] = rows.map((row) => ({
+      id: `${row.document_id}:${row.chunk_index}`,
+      values: row.embedding,
+      indexText: row.index_text,
+      documentId: row.document_id,
+      documentName: row.document_name,
+      pageNumber: row.page_number,
+      chunkIndex: row.chunk_index,
+      textSnippet: row.content,
+    }));
+
+    try {
+      await this.pinecone.upsertChunks(upserts);
+    } catch (error) {
+      this.pinecone.fail('upsert chunk vectors', error);
+    }
+
+    await this.store.updateIndexed(documentId, indexedSoFar);
   }
 
   async updateStatus(
@@ -91,53 +84,74 @@ export class DocumentsService {
     status: DocumentStatus,
     extra: { indexed_chunks?: number; error_message?: string | null } = {},
   ): Promise<void> {
-    const { error } = await this.db
-      .from('documents')
-      .update({ status, ...extra, updated_at: new Date().toISOString() })
-      .eq('id', id);
-    if (error) this.fail('update document status', error);
+    const updated = await this.store.updateStatus(id, status, {
+      indexedChunks: extra.indexed_chunks,
+      errorMessage: extra.error_message,
+    });
+    if (!updated && status !== 'failed') {
+      this.logger.warn(`Document ${id} missing while updating status to ${status}`);
+    }
     if (status === 'ready') this.cache.clear();
   }
 
   async remove(id: string): Promise<void> {
-    const { data, error } = await this.db
-      .from('documents')
-      .delete()
-      .eq('id', id)
-      .select('id');
-    if (error) this.fail('delete document', error);
-    if (!data || data.length === 0)
-      throw new NotFoundException('Document not found.');
+    const removed = await this.store.remove(id);
+    if (!removed) throw new NotFoundException('Document not found.');
+    try {
+      await this.pinecone.deleteByDocumentId(id);
+    } catch (error) {
+      this.pinecone.fail('delete document vectors', error);
+    }
     this.cache.clear();
   }
 
   async matchChunks(params: {
-    embedding: number[];
+    embedding?: number[];
+    queryText?: string;
     threshold: number;
     count: number;
     documentIds?: string[];
   }): Promise<MatchedChunk[]> {
-    const result = await this.db.rpc('match_documents', {
-      query_embedding: params.embedding,
-      match_threshold: params.threshold,
-      match_count: params.count,
-      filter_document_ids: params.documentIds?.length
-        ? params.documentIds
-        : null,
-    });
-    if (result.error) this.fail('match documents', result.error);
-    return (result.data ?? []) as MatchedChunk[];
-  }
+    const readyIds = this.store.getReadyIds();
+    if (readyIds.length === 0) return [];
 
-  private fail(
-    action: string,
-    error: { message: string; code?: string },
-  ): never {
-    this.logger.error(
-      `Supabase failed to ${action}: [${error.code ?? 'n/a'}] ${error.message}`,
+    let scope = readyIds;
+    if (params.documentIds?.length) {
+      const allowed = new Set(params.documentIds);
+      scope = readyIds.filter((id) => allowed.has(id));
+      if (scope.length === 0) return [];
+    }
+
+    const topK = Math.min(
+      Math.max(params.count, 1),
+      this.config.get('RAG_MATCH_COUNT', { infer: true }),
     );
-    throw new InternalServerErrorException(
-      'Knowledge base storage is unavailable. Please try again.',
-    );
+
+    let matches;
+    try {
+      matches = await this.pinecone.query({
+        embedding: params.embedding,
+        queryText: params.queryText,
+        topK: params.threshold < 0 ? 1 : Math.max(topK, 8),
+        documentIds: scope.length < readyIds.length ? scope : undefined,
+      });
+    } catch (error) {
+      this.pinecone.fail('query vectors', error);
+    }
+
+    const filtered =
+      params.threshold < 0
+        ? matches.slice(0, 1)
+        : matches.filter((m) => m.score > params.threshold).slice(0, topK);
+
+    return filtered.map((m) => ({
+      id: m.id,
+      document_id: m.documentId,
+      document_name: m.documentName,
+      page_number: m.pageNumber,
+      chunk_index: m.chunkIndex,
+      content: m.textSnippet,
+      similarity: m.score,
+    }));
   }
 }

@@ -10,7 +10,9 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { LinearGradient } from 'expo-linear-gradient';
 import { IconButton } from '@/components/ui/icon-button';
+import { GlassSurface } from '@/components/ui/glass-surface';
 import { ProgressBar } from '@/components/ui/progress-bar';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import type { SourceCitation } from '@/lib/types';
@@ -24,7 +26,7 @@ interface SourceSheetProps {
 
 /** Bottom sheet that shows the exact chunk text a citation came from. */
 export function SourceSheet({ source, onClose }: SourceSheetProps) {
-  const { palette } = useAppTheme();
+  const { palette, isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const [closing, setClosing] = useState(false);
@@ -67,9 +69,17 @@ export function SourceSheet({ source, onClose }: SourceSheetProps) {
 
       {visible ? (
         <Animated.View style={[styles.sheet, { maxHeight: height * 0.8 }, sheetStyle]}>
-          <View
-            className="rounded-t-[28px] border border-b-0 border-zinc-200 bg-white px-5 pt-3 dark:border-ink-700 dark:bg-ink-850"
+          <GlassSurface
+            intensity={60}
+            className="overflow-hidden rounded-t-[28px] border border-b-0 border-zinc-200/80 dark:border-white/10"
             style={{ paddingBottom: insets.bottom + 20 }}>
+            <LinearGradient
+              colors={
+                isDark
+                  ? ['rgba(99,102,241,0.35)', 'transparent']
+                  : ['rgba(99,102,241,0.2)', 'transparent']
+              }
+              style={{ paddingHorizontal: 20, paddingTop: 12 }}>
             <View className="mb-4 h-1.5 w-10 self-center rounded-full bg-zinc-300 dark:bg-ink-600" />
 
             <View className="flex-row items-start gap-3">
@@ -110,7 +120,8 @@ export function SourceSheet({ source, onClose }: SourceSheetProps) {
                 </Text>
               </View>
             </ScrollView>
-          </View>
+            </LinearGradient>
+          </GlassSurface>
         </Animated.View>
       ) : null}
     </Modal>

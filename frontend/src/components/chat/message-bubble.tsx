@@ -1,8 +1,10 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { memo, useState } from 'react';
 import { Text, View } from 'react-native';
 import Animated, { FadeInLeft, FadeInRight } from 'react-native-reanimated';
 
+import { GlassSurface } from '@/components/ui/glass-surface';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import type { ChatMessage, SourceCitation } from '@/lib/types';
 
@@ -23,6 +25,7 @@ interface MessageBubbleProps {
  * (scaleY: -1), which would flip any vertical entering animation.
  */
 function MessageBubbleImpl({ message, onSourcePress }: MessageBubbleProps) {
+  const { palette } = useAppTheme();
   // Only animate freshly created messages, not cells re-mounted by list virtualization.
   const [isNew] = useState(() => Date.now() - message.createdAt < ENTER_WINDOW_MS);
 
@@ -31,11 +34,15 @@ function MessageBubbleImpl({ message, onSourcePress }: MessageBubbleProps) {
       <Animated.View
         entering={isNew ? FadeInRight.springify().damping(18).mass(0.8) : undefined}
         style={{ alignSelf: 'flex-end', maxWidth: '86%' }}>
-        <View className="rounded-3xl rounded-br-md bg-brand-500 px-4 py-2.5">
+        <LinearGradient
+          colors={[palette.gradientStart, palette.gradientEnd]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={{ borderRadius: 22, borderBottomRightRadius: 6, paddingHorizontal: 16, paddingVertical: 10 }}>
           <Text selectable className="text-[15px] leading-6 text-white">
             {message.text}
           </Text>
-        </View>
+        </LinearGradient>
       </Animated.View>
     );
   }
@@ -57,19 +64,24 @@ function AssistantBody({ message, onSourcePress }: MessageBubbleProps) {
 
   return (
     <View className="flex-row gap-3">
-      <View className="mt-0.5 h-8 w-8 items-center justify-center rounded-xl bg-brand-500">
+      <LinearGradient
+        colors={[palette.gradientStart, palette.gradientEnd]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ marginTop: 2, width: 32, height: 32, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }}>
         <Ionicons name="sparkles" size={16} color="#FFFFFF" />
-      </View>
+      </LinearGradient>
 
       <View className="flex-1 gap-2.5">
         {pending && message.text.length === 0 ? <StatusPill phase={phase} /> : null}
 
         {message.text.length > 0 ? (
-          <View
-            className={`rounded-3xl rounded-tl-md border px-4 py-3 ${
+          <GlassSurface
+            intensity={footer?.mode === 'blocked' ? 20 : 45}
+            className={`rounded-3xl rounded-tl-md px-4 py-3 ${
               footer?.mode === 'blocked'
-                ? 'border-rose-200 bg-rose-50 dark:border-rose-400/25 dark:bg-rose-400/10'
-                : 'border-zinc-200 bg-white dark:border-ink-700 dark:bg-ink-850'
+                ? 'border-rose-300/60 dark:border-rose-400/25'
+                : 'border-zinc-200/80 dark:border-white/10'
             }`}>
             <AnswerText
               text={message.text}
@@ -77,7 +89,7 @@ function AssistantBody({ message, onSourcePress }: MessageBubbleProps) {
               sources={footer?.sources}
               onCitationPress={onSourcePress}
             />
-          </View>
+          </GlassSurface>
         ) : null}
 
         {phase === 'error' ? (

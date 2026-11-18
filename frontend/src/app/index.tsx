@@ -34,6 +34,7 @@ export default function ChatScreen() {
   const openedOffset = bottomPadding - KEYBOARD_GAP;
 
   const indexingCount = kb.documents.filter((d) => d.status === 'processing').length;
+  const totalChunks = kb.readyDocuments.reduce((sum, d) => sum + d.chunkCount, 0);
   const scopeLabel =
     kb.selectedIds.length > 0
       ? `Searching ${kb.selectedIds.length} of ${kb.readyDocuments.length} documents`
@@ -69,6 +70,7 @@ export default function ChatScreen() {
     <View className="flex-1 bg-zinc-50 dark:bg-ink-900">
       <ChatHeader
         readyCount={kb.readyDocuments.length}
+        totalChunks={totalChunks}
         indexingCount={indexingCount}
         offline={kb.error !== null}
         canReset={chat.messages.length > 0}
@@ -83,6 +85,7 @@ export default function ChatScreen() {
             contentContainerStyle={{ flexGrow: 1 }}
             showsVerticalScrollIndicator={false}>
             <EmptyState
+              documents={kb.documents}
               hasDocuments={kb.readyDocuments.length > 0}
               onSuggestion={send}
               onUpload={openKnowledge}

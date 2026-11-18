@@ -5,6 +5,7 @@ import { EnvironmentVariables } from '../config/env.validation';
 import { OpenAiService } from '../openai/openai.service';
 import { IntentRouterService } from './cost/intent-router.service';
 import { QueryCacheService } from './cost/query-cache.service';
+import { PineconeService } from '../pinecone/pinecone.service';
 import { DocumentsService } from './documents.service';
 import { ChatRequestDto } from './dto/chat-request.dto';
 import {
@@ -40,6 +41,7 @@ export class ChatService {
     private readonly cache: QueryCacheService,
     private readonly documents: DocumentsService,
     private readonly openai: OpenAiService,
+    private readonly pinecone: PineconeService,
     config: ConfigService<EnvironmentVariables, true>,
   ) {
     this.matchCount = config.get('RAG_MATCH_COUNT', { infer: true });
@@ -106,14 +108,22 @@ export class ChatService {
       return;
     }
 
-    // Layer 4: embedding + pgvector similarity search.
+    // Layer 4: retrieval — OpenAI embeddings (legacy/BYO vectors) or Pinecone integrated embed.
     yield { event: 'status', data: { stage: 'searching' } };
-    const embedding = await this.openai.embed([question], signal);
-    usage.openaiCalls += 1;
-    usage.embeddingTokens += embedding.tokens;
+    let queryEmbedding: number[] | undefined;
+    let queryText: string | undefined;
+    if (this.pinecone.usesIntegratedEmbedding) {
+      queryText = question;
+    } else {
+      const embedding = await this.openai.embed([question], signal);
+      usage.openaiCalls += 1;
+      usage.embeddingTokens += embedding.tokens;
+      queryEmbedding = embedding.vectors[0];
+    }
 
     const chunks = await this.documents.matchChunks({
-      embedding: embedding.vectors[0],
+      embedding: queryEmbedding,
+      queryText,
       threshold: this.threshold,
       count: this.matchCount,
       documentIds: dto.documentIds,
@@ -121,7 +131,8 @@ export class ChatService {
 
     if (chunks.length === 0) {
       const [closest] = await this.documents.matchChunks({
-        embedding: embedding.vectors[0],
+        embedding: queryEmbedding,
+        queryText,
         threshold: -1,
         count: 1,
         documentIds: dto.documentIds,

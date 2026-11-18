@@ -1,12 +1,15 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { VectorEnginePill } from '@/components/chat/vector-engine-pill';
 import { IconButton } from '@/components/ui/icon-button';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 interface ChatHeaderProps {
   readyCount: number;
+  totalChunks: number;
   indexingCount: number;
   offline: boolean;
   canReset: boolean;
@@ -16,6 +19,7 @@ interface ChatHeaderProps {
 
 export function ChatHeader({
   readyCount,
+  totalChunks,
   indexingCount,
   offline,
   canReset,
@@ -23,47 +27,64 @@ export function ChatHeader({
   onOpenKnowledge,
 }: ChatHeaderProps) {
   const insets = useSafeAreaInsets();
-  const { isDark, toggleTheme } = useAppTheme();
-
-  const subtitle = offline
-    ? 'Server unreachable'
-    : indexingCount > 0
-      ? `Indexing ${indexingCount} document${indexingCount === 1 ? '' : 's'}…`
-      : readyCount > 0
-        ? `${readyCount} document${readyCount === 1 ? '' : 's'} indexed`
-        : 'No documents yet';
-  const dotClass = offline ? 'bg-rose-500' : indexingCount > 0 ? 'bg-amber-400' : 'bg-emerald-500';
+  const { isDark, palette, toggleTheme } = useAppTheme();
 
   return (
     <View
-      className="border-b border-zinc-200/80 bg-zinc-50 dark:border-ink-800 dark:bg-ink-900"
+      className="border-b border-zinc-200/60 bg-zinc-50/90 dark:border-white/5 dark:bg-ink-950/95"
       style={{ paddingTop: insets.top }}>
-      <View className="h-14 flex-row items-center gap-3 px-4">
-        <View className="h-9 w-9 items-center justify-center rounded-xl bg-brand-500">
-          <Ionicons name="sparkles" size={18} color="#FFFFFF" />
-        </View>
-        <View className="flex-1">
-          <Text className="text-[17px] font-bold tracking-tight text-zinc-900 dark:text-zinc-50">DocuMind AI</Text>
-          <View className="flex-row items-center gap-1.5">
-            <View className={`h-1.5 w-1.5 rounded-full ${dotClass}`} />
-            <Text numberOfLines={1} className="text-xs text-zinc-500 dark:text-zinc-400">
-              {subtitle}
+      <LinearGradient
+        colors={
+          isDark
+            ? ['rgba(99,102,241,0.18)', 'transparent']
+            : ['rgba(99,102,241,0.12)', 'transparent']
+        }
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
+        <View className="flex-row items-center gap-3 pt-2">
+          <LinearGradient
+            colors={[palette.gradientStart, palette.gradientEnd]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={{ borderRadius: 14, padding: 2 }}>
+            <View className="h-9 w-9 items-center justify-center rounded-[12px] bg-ink-900/20 dark:bg-black/25">
+              <Ionicons name="sparkles" size={18} color="#FFFFFF" />
+            </View>
+          </LinearGradient>
+          <View className="flex-1">
+            <Text className="text-[18px] font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+              DocuMind AI
+            </Text>
+            <Text className="text-[12px] text-zinc-500 dark:text-zinc-400">
+              Grounded answers · Pinecone retrieval
             </Text>
           </View>
+          <IconButton
+            icon={isDark ? 'sunny-outline' : 'moon-outline'}
+            label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+            onPress={toggleTheme}
+          />
+          <IconButton
+            icon="create-outline"
+            label="New chat"
+            onPress={onReset}
+            disabled={!canReset}
+          />
+          <IconButton
+            icon="library-outline"
+            label="Open knowledge base"
+            onPress={onOpenKnowledge}
+            badge={readyCount + indexingCount}
+          />
         </View>
-        <IconButton
-          icon={isDark ? 'sunny-outline' : 'moon-outline'}
-          label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-          onPress={toggleTheme}
+        <VectorEnginePill
+          readyCount={readyCount}
+          totalChunks={totalChunks}
+          offline={offline}
+          indexing={indexingCount > 0}
         />
-        <IconButton icon="create-outline" label="New chat" onPress={onReset} disabled={!canReset} />
-        <IconButton
-          icon="library-outline"
-          label="Open knowledge base"
-          onPress={onOpenKnowledge}
-          badge={readyCount + indexingCount}
-        />
-      </View>
+      </LinearGradient>
     </View>
   );
 }

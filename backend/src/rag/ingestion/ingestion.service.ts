@@ -7,6 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { EnvironmentVariables } from '../../config/env.validation';
 import { OpenAiService } from '../../openai/openai.service';
+import { PineconeService } from '../../pinecone/pinecone.service';
 import { DocumentGoneError, DocumentsService } from '../documents.service';
 import { DocumentSummary, TextChunk } from '../rag.types';
 import { detectKind, extractPages, sanitizeFileName } from './document-parser';
@@ -22,6 +23,7 @@ export class IngestionService {
   constructor(
     private readonly documents: DocumentsService,
     private readonly openai: OpenAiService,
+    private readonly pinecone: PineconeService,
     config: ConfigService<EnvironmentVariables, true>,
   ) {
     this.maxChunks = config.get('RAG_MAX_CHUNKS_PER_DOCUMENT', { infer: true });
@@ -72,11 +74,14 @@ export class IngestionService {
       for (let i = 0; i < chunks.length; i += INDEX_BATCH_SIZE) {
         const batch = chunks.slice(i, i + INDEX_BATCH_SIZE);
         // A short title prefix improves retrieval for generic chunks ("Section 4.2 ...").
-        const { vectors } = await this.openai.embed(
-          batch.map(
-            (c) => `${document.name} (page ${c.pageNumber})\n${c.content}`,
-          ),
+        const indexTexts = batch.map(
+          (c) => `${document.name} (page ${c.pageNumber})\n${c.content}`,
         );
+        let vectors: number[][] = [];
+        if (!this.pinecone.usesIntegratedEmbedding) {
+          const embedded = await this.openai.embed(indexTexts);
+          vectors = embedded.vectors;
+        }
         await this.documents.insertChunks(
           batch.map((chunk, j) => ({
             document_id: document.id,
@@ -84,7 +89,8 @@ export class IngestionService {
             chunk_index: chunk.chunkIndex,
             page_number: chunk.pageNumber,
             content: chunk.content,
-            embedding: vectors[j],
+            index_text: indexTexts[j],
+            embedding: vectors[j] ?? [],
           })),
           i + batch.length,
         );

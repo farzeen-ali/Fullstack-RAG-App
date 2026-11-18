@@ -3,10 +3,16 @@ export interface EnvironmentVariables {
   HOST: string;
   PORT: number;
   CORS_ORIGINS: string[];
+  DATA_DIR: string;
 
   OPENAI_API_KEY: string;
-  SUPABASE_URL: string;
-  SUPABASE_SERVICE_ROLE_KEY: string;
+  PINECONE_API_KEY: string;
+  PINECONE_INDEX_NAME: string;
+  PINECONE_NAMESPACE: string;
+  /** Optional — schema index with integrated embedding (auto-detected if omitted). */
+  PINECONE_EMBED_FIELD: string;
+  /** Optional — schema index with BYO dense vectors (auto-detected if omitted). */
+  PINECONE_DENSE_FIELD: string;
 
   RAG_MATCH_COUNT: number;
   RAG_SIMILARITY_THRESHOLD: number;
@@ -52,11 +58,6 @@ function readNumber(
 export function validateEnv(raw: RawEnv): EnvironmentVariables {
   const errors: string[] = [];
 
-  const supabaseUrl = requireString(raw, 'SUPABASE_URL', errors);
-  if (supabaseUrl && !/^https?:\/\/.+/i.test(supabaseUrl)) {
-    errors.push('SUPABASE_URL must be a valid http(s) URL');
-  }
-
   const env: EnvironmentVariables = {
     NODE_ENV: raw.NODE_ENV?.trim() || 'development',
     HOST: raw.HOST?.trim() || '0.0.0.0',
@@ -65,21 +66,22 @@ export function validateEnv(raw: RawEnv): EnvironmentVariables {
       .split(',')
       .map((origin) => origin.trim())
       .filter(Boolean),
+    DATA_DIR: raw.DATA_DIR?.trim() || './data',
 
     OPENAI_API_KEY: requireString(raw, 'OPENAI_API_KEY', errors),
-    SUPABASE_URL: supabaseUrl,
-    SUPABASE_SERVICE_ROLE_KEY: requireString(
-      raw,
-      'SUPABASE_SERVICE_ROLE_KEY',
-      errors,
-    ),
+    PINECONE_API_KEY: requireString(raw, 'PINECONE_API_KEY', errors),
+    PINECONE_INDEX_NAME:
+      raw.PINECONE_INDEX_NAME?.trim() || 'documind',
+    PINECONE_NAMESPACE: raw.PINECONE_NAMESPACE?.trim() || 'documind',
+    PINECONE_EMBED_FIELD: raw.PINECONE_EMBED_FIELD?.trim() || '',
+    PINECONE_DENSE_FIELD: raw.PINECONE_DENSE_FIELD?.trim() || '',
 
     RAG_MATCH_COUNT: readNumber(raw, 'RAG_MATCH_COUNT', 4, 1, 4, errors),
     RAG_SIMILARITY_THRESHOLD: readNumber(
       raw,
       'RAG_SIMILARITY_THRESHOLD',
       0.72,
-      0,
+      -1,
       1,
       errors,
     ),
