@@ -69,9 +69,18 @@ export interface UploadHandle {
   abort: () => void;
 }
 
-/** Uses XMLHttpRequest because it is the only RN networking API that reports upload progress. */
-export function uploadDocument(file: UploadFile, onProgress: (fraction: number) => void): UploadHandle {
+export interface UploadCallbacks {
+  onProgress: (fraction: number) => void;
+  onPhase: (phase: 'sending' | 'processing') => void;
+}
+
+/**
+ * Uses XMLHttpRequest (works on Expo Go). Upload byte progress is often missing on
+ * iOS/Android, so we also signal when the server is parsing the file.
+ */
+export function uploadDocument(file: UploadFile, callbacks: UploadCallbacks): UploadHandle {
   const xhr = new XMLHttpRequest();
+  let sent = false;
 
   const promise = new Promise<KnowledgeDocument>((resolve, reject) => {
     const form = new FormData();
@@ -86,9 +95,21 @@ export function uploadDocument(file: UploadFile, onProgress: (fraction: number) 
     }
 
     xhr.open('POST', `${BACKEND_URL}/rag/upload`);
-    xhr.timeout = 120_000;
+    xhr.timeout = 180_000;
     xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable && event.total > 0) onProgress(event.loaded / event.total);
+      if (event.lengthComputable && event.total > 0) {
+        callbacks.onProgress(event.loaded / event.total);
+      }
+    };
+    xhr.upload.onload = () => {
+      sent = true;
+      callbacks.onProgress(1);
+      callbacks.onPhase('processing');
+    };
+    xhr.onreadystatechange = () => {
+      if (xhr.readyState === XMLHttpRequest.HEADERS_RECEIVED && sent) {
+        callbacks.onPhase('processing');
+      }
     };
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {

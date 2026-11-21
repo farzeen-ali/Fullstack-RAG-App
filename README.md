@@ -1,18 +1,17 @@
 # DocuMind AI — Intelligent Enterprise & Study Knowledge Base
 
-Upload PDFs, study guides or company policies, then chat with them. Answers are grounded in **your** documents via **Pinecone** vector search, streamed token-by-token, with clickable **source citation chips** (document + page + excerpt + similarity).
+Upload PDFs, study guides or company policies, then chat with them. Answers are grounded in **your** documents via **local ChromaDB** vector search, streamed token-by-token, with clickable **source citation chips** (document + page + excerpt + similarity %).
 
 ```
 ┌──────────────────────────────┐   SSE (status/token/done)   ┌────────────────────────────────────────────┐
 │  frontend/  Expo Router      │ ◀──────────────────────────▶│  backend/  NestJS                           │
 │  NativeWind · Reanimated      │   POST /rag/upload          │  Zero-token router → guard → cache           │
-│  keyboard-controller          │   GET/DELETE /rag/documents │  → OpenAI embed → Pinecone query (topK=4)    │
+│  keyboard-controller          │   GET/DELETE /rag/documents │  → OpenAI embed → Chroma query (nResults=4) │
 └──────────────────────────────┘                               │  → gpt-4o-mini (XML-hardened stream)         │
                                                                └──────────────┬─────────────────────────────┘
-                                                                              │
+                                                                              │ HTTP :8000
                                     ┌─────────────────────────────────────────┴──────────────────────────┐
-                                    │  Pinecone Serverless (1536 dims, cosine)  +  backend/data/ JSON     │
-                                    │  vectors + metadata                        document registry       │
+                                    │  ChromaDB (cosine, collection documind_rag)  +  backend/data/ JSON  │
                                     └────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -21,13 +20,13 @@ Upload PDFs, study guides or company policies, then chat with them. Answers are 
 ## Contents
 
 1. [Features](#1-features)
-2. [Pinecone setup](#2-pinecone-setup)
-3. [Migrate from Supabase](#3-migrate-from-supabase)
+2. [ChromaDB setup & run guide](#2-chromadb-setup--run-guide)
+3. [Migrate from Pinecone](#3-migrate-from-pinecone)
 4. [Installation](#4-installation)
 5. [Environment variables](#5-environment-variables)
-6. [Running & testing](#6-running--testing)
+6. [Running on phone (Expo Go)](#6-running-on-phone-expo-go)
 7. [API reference](#7-api-reference)
-8. [Cost & security (unchanged)](#8-cost--security-unchanged)
+8. [Cost & security](#8-cost--security)
 9. [Troubleshooting](#9-troubleshooting)
 
 ---
@@ -36,59 +35,103 @@ Upload PDFs, study guides or company policies, then chat with them. Answers are 
 
 | Area | What you get |
 | --- | --- |
-| **Vectors** | `@pinecone-database/pinecone` — upsert on ingest, metadata filter on query/delete, namespace `documind` (configurable). |
+| **Vectors** | `chromadb` JS client — upsert on ingest, metadata filter on query/delete, collection `documind_rag` (configurable). |
 | **Registry** | Document metadata (status, chunk counts, names) in `backend/data/documents.json` (git-ignored). |
-| **Ingestion** | PDF / `.txt` / `.md` ≤ 10 MB → ~600-char chunks (100 overlap) → `text-embedding-3-small` → batched Pinecone upsert. |
-| **Retrieval** | `topK = 4`, cosine score `> RAG_SIMILARITY_THRESHOLD` (default **0.72**), optional `documentIds` scope. |
-| **Cost** | Zero-token greetings, query cache, no-match short-circuit, throttling — all preserved. |
+| **Ingestion** | PDF / `.txt` / `.md` ≤ 10 MB → ~600-char chunks (100 overlap) → `text-embedding-3-small` → batched Chroma upsert. |
+| **Retrieval** | `nResults = 4`, cosine similarity `> RAG_SIMILARITY_THRESHOLD` (default **0.72**), optional `documentIds` scope. |
+| **Cost** | Zero-token greetings, query cache, no-match short-circuit, throttling. |
 | **Security** | Prompt injection guard, XML-delimited context, output canary, Helmet, DTO bounds. |
-| **Mobile UI** | Glass surfaces, gradient accents, **Pinecone Vector DB • Active** status pill, document-aware starter prompts, Reanimated streaming + source bottom sheet. |
+| **Mobile UI** | Glass surfaces, **ChromaDB Local • Active** pill, emerald search pulse, match % on source chips, Reanimated streams + source sheet. |
 
----
-
-## 2. Pinecone setup
-
-1. Sign up at [app.pinecone.io](https://app.pinecone.io/) (free tier available).
-2. **Create index** (Serverless) — either mode works with DocuMind (auto-detected on startup):
-
-   **A. Legacy vector index (OpenAI embeddings)**  
-   Dimensions `1536`, metric `cosine`. No document schema.
-
-   **B. Document-schema index (Pinecone integrated embedding)** — e.g. console quickstart with fields `title` + `chunk_text` (`embed` / `llama-text-embed-v2`). DocuMind writes via the **Documents API**, embeds chunks at upsert, and searches with `embed` on `chunk_text` (no OpenAI embedding calls for retrieval). Use **`RAG_SIMILARITY_THRESHOLD=0.25–0.45`** — scores are not on the same scale as cosine + OpenAI.
-
-   Optional overrides: `PINECONE_EMBED_FIELD`, `PINECONE_DENSE_FIELD` (for BYO `dense_vector` schema fields).
-
-3. **API key:** **API Keys** → create key → copy `PINECONE_API_KEY` (starts with `pcsk_`).
-4. Put key and index name in `backend/.env` (see [templates](#5-environment-variables)).
-
-**Metadata on each vector**
+**Metadata on each Chroma record**
 
 | Field | Purpose |
 | --- | --- |
 | `documentId` | Filter deletes & scoped search |
 | `documentName` | Citations |
 | `pageNumber` | Citations |
-| `chunkIndex` | Stable vector id suffix |
+| `chunkIndex` | Stable ID suffix |
 | `textSnippet` | RAG context + source sheet |
 
-Vector IDs: `{documentId}:{chunkIndex}`.
+Record IDs: `{documentId}:{chunkIndex}`.
 
 ---
 
-## 3. Migrate from Supabase
+## 2. ChromaDB setup & run guide
 
-If you used the earlier pgvector version:
+### Step 1 — Install ChromaDB (Python)
+
+Pick any one package manager:
+
+```bash
+# pip (most common)
+pip install chromadb
+
+# poetry
+poetry add chromadb
+
+# uv
+uv pip install chromadb
+```
+
+Requires **Python 3.9+**. Use a virtual environment if you already use one for other tools.
+
+### Step 2 — Start the persistent local server
+
+From your project root (or any folder where you want storage):
+
+```bash
+chroma run --path ./chroma_data --port 8000
+```
+
+Keep this terminal open. Chroma persists vectors under `./chroma_data` between restarts.
+
+**Verify it is running**
+
+1. You should see a log line that the server is listening on port **8000**.
+2. Optional quick Python check:
+
+```python
+import chromadb
+
+client = chromadb.HttpClient(host="localhost", port=8000)
+print(client.heartbeat())  # e.g. a nanosecond timestamp integer
+print(client.list_collections())
+```
+
+### Step 3 — Connect the NestJS backend
 
 ```bash
 cd backend
-npm uninstall @supabase/supabase-js
-npm install @pinecone-database/pinecone
+npm uninstall @pinecone-database/pinecone
+npm install chromadb
+cp .env.example .env
 ```
 
-1. Remove from `backend/.env`: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`.
-2. Add: `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`, optional `PINECONE_NAMESPACE`, `DATA_DIR=./data`.
-3. Create the Pinecone index (section 2).
-4. **Re-upload PDFs** — vectors now live in Pinecone; old Supabase rows are not migrated automatically.
+In `backend/.env` set at minimum:
+
+- `OPENAI_API_KEY`
+- `CHROMA_URL=http://localhost:8000`
+- `CHROMA_COLLECTION_NAME=documind_rag`
+
+Start the API:
+
+```bash
+npm run start:dev
+```
+
+On startup you should see: `ChromaDB connected at http://localhost:8000 — collection "documind_rag"`.
+
+The backend calls `getOrCreateCollection` with **`hnsw:space: cosine`** (collection metadata + HNSW config) so distances map to OpenAI cosine similarity as `similarity = 1 - distance`.
+
+---
+
+## 3. Migrate from Pinecone
+
+1. **Stop** using Pinecone env vars — remove `PINECONE_*` from `backend/.env`.
+2. Run the [backend package commands](#step-3--connect-the-nestjs-backend) above.
+3. Start Chroma ([Step 2](#step-2--start-the-persistent-local-server)).
+4. **Re-upload PDFs** — vectors are not migrated automatically; only the local JSON registry remains.
 
 ---
 
@@ -101,11 +144,10 @@ cd backend
 npm install
 ```
 
-Fresh backend dependency set:
+Core vector dependency:
 
 ```bash
-npm install @nestjs/config@^4.0.4 @nestjs/throttler class-validator class-transformer \
-  @pinecone-database/pinecone openai pdf-parse helmet
+npm install chromadb openai pdf-parse helmet @nestjs/config @nestjs/throttler
 npm install -D @types/multer
 ```
 
@@ -120,7 +162,7 @@ npx expo install nativewind@4.2.7 react-native-reanimated react-native-safe-area
 npx expo install tailwindcss@^3.4.17 --dev
 ```
 
-All native modules used ship in **Expo Go** (SDK 58).
+Works with **Expo Go** (SDK 58).
 
 ---
 
@@ -136,9 +178,8 @@ DATA_DIR=./data
 
 OPENAI_API_KEY=sk-proj-your-openai-key
 
-PINECONE_API_KEY=pcsk_your-pinecone-api-key
-PINECONE_INDEX_NAME=documind
-PINECONE_NAMESPACE=documind
+CHROMA_URL=http://localhost:8000
+CHROMA_COLLECTION_NAME=documind_rag
 
 RAG_MATCH_COUNT=4
 RAG_SIMILARITY_THRESHOLD=0.72
@@ -158,42 +199,37 @@ THROTTLE_LIMIT=15
 EXPO_PUBLIC_BACKEND_URL=http://192.168.1.50:3000
 ```
 
-Use your PC’s **LAN IP**, not `localhost`, on a physical phone. Only `EXPO_PUBLIC_*` values are bundled into the app — **never** put OpenAI or Pinecone keys in the frontend.
+Use your PC’s **LAN IP**, not `localhost`, on a physical phone. Never put OpenAI keys in the frontend.
 
 ---
 
-## 6. Running & testing
+## 6. Running on phone (Expo Go)
 
-**Terminal 1 — backend**
+Use **three terminals**:
 
-```bash
-cd backend
-cp .env.example .env   # then edit secrets
-npm run start:dev
-```
+| Terminal | Command | Purpose |
+| --- | --- | --- |
+| **A** | `chroma run --path ./chroma_data --port 8000` | Vector database |
+| **B** | `cd backend && npm run start:dev` | NestJS (`HOST=0.0.0.0`) |
+| **C** | `cd frontend && npx expo start --clear` | Expo Go |
 
-**Terminal 2 — frontend**
+**Phone checklist**
 
-```bash
-cd frontend
-cp .env.example .env
-npx expo start --clear
-```
+1. Phone and PC on the **same Wi‑Fi**.
+2. `frontend/.env`: `EXPO_PUBLIC_BACKEND_URL=http://<your-pc-lan-ip>:3000`
+3. `backend/.env`: `CORS_ORIGINS` includes your Expo origin if needed.
+4. Allow **port 3000** through Windows Firewall (Private network).
+5. Knowledge Base → upload PDF → wait for **Ready**.
+6. Header: **ChromaDB Local · Active · N docs · M chunks**.
+7. Ask a question → emerald **Querying ChromaDB…** pulse → streamed answer + chips with **match %**.
+8. `thanks!` → zero-token reply, no OpenAI/Chroma calls.
 
-**Checks**
+**Tests**
 
 ```bash
 cd backend && npm test && npm run test:e2e
 cd ../frontend && npx tsc --noEmit && npx expo lint
 ```
-
-**On device (Expo Go)**
-
-1. Open Knowledge Base → upload a PDF → wait for **Ready**.
-2. Header shows **Pinecone Vector DB · Active · N docs · M chunks**.
-3. Ask a content question → streaming answer + source chips → tap chip for excerpt + similarity %.
-4. Send `thanks!` → **Instant · Zero-Token** badge, 0 API calls.
-5. Keyboard: composer stays above keys; list scrolls with `KeyboardChatScrollView`.
 
 ---
 
@@ -204,16 +240,16 @@ cd ../frontend && npx tsc --noEmit && npx expo lint
 | `GET` | `/health` | Liveness |
 | `POST` | `/rag/upload` | Multipart `file`, max 10 MB |
 | `GET` | `/rag/documents` | Registry from `data/documents.json` |
-| `DELETE` | `/rag/documents/:id` | Deletes registry row + Pinecone vectors (`documentId` filter) |
+| `DELETE` | `/rag/documents/:id` | Registry + Chroma delete (`where: { documentId }`) |
 | `POST` | `/rag/chat` | SSE: `status` → `token` → `done` with `sources[]` |
 
 ---
 
-## 8. Cost & security (unchanged)
+## 8. Cost & security
 
-- **Layers:** intent router (0 calls) → prompt guard → LRU cache → embed + Pinecone → `gpt-4o-mini`.
-- **Models:** `text-embedding-3-small`, `gpt-4o-mini`, `max_completion_tokens` capped.
-- **OWASP LLM:** injection patterns stripped/blocked, `<retrieved_context>` treated as untrusted data, output canary + secret redaction, 15 req/min/IP, question ≤ 1000 chars.
+- **Layers:** intent router (0 calls) → prompt guard → LRU cache → embed + Chroma → `gpt-4o-mini`.
+- **Models:** `text-embedding-3-small`, `gpt-4o-mini`.
+- **OWASP LLM:** injection patterns stripped/blocked, `<retrieved_context>` untrusted, output canary, 15 req/min/IP.
 
 ---
 
@@ -221,10 +257,10 @@ cd ../frontend && npx tsc --noEmit && npx expo lint
 
 | Issue | Fix |
 | --- | --- |
-| Server won’t start / invalid env | Set `PINECONE_API_KEY` and `OPENAI_API_KEY`. Remove leftover `SUPABASE_*` vars. |
-| `Vector knowledge base is unavailable` | Wrong index name, key, or index still provisioning (wait ~1 min). |
-| Always “couldn’t find” despite upload | Lower `RAG_SIMILARITY_THRESHOLD` (e.g. `0.5`); `text-embedding-3-small` often scores 0.35–0.65 on good matches. Backend logs closest score when nothing passes threshold. |
-| Phone can’t reach API | `EXPO_PUBLIC_BACKEND_URL` = LAN IP; allow port 3000 on Windows firewall (Private). |
-| Empty document list after migration | Re-upload; registry is local JSON under `DATA_DIR`. |
+| Server won’t start / invalid env | Set `OPENAI_API_KEY` and `CHROMA_URL`. Remove leftover `PINECONE_*` or `SUPABASE_*` vars. |
+| `Vector knowledge base is unavailable` | Chroma not running, wrong port, or firewall blocking localhost:8000 from the backend process. |
+| Always “couldn’t find” | Lower `RAG_SIMILARITY_THRESHOLD` (e.g. `0.55`); backend logs closest score when nothing passes. |
+| Phone can’t reach API | Use LAN IP in `EXPO_PUBLIC_BACKEND_URL`; `HOST=0.0.0.0` on backend. |
+| Empty list after migration | Re-upload; registry is local JSON under `DATA_DIR`. |
 
-**Production:** add auth + per-user namespaces/metadata filters; use Redis for cache/throttle when scaling horizontally.
+**Production:** run Chroma on a managed host or dedicated VM; add auth and per-user metadata filters; use Redis for cache/throttle when scaling the API horizontally.

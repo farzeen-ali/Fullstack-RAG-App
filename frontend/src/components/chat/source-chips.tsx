@@ -72,6 +72,11 @@ export function SourceChips({ sources, onSelect }: SourceChipsProps) {
                     {source.documentName}
                   </Text>
                   <Text className="text-[11px] text-zinc-500 dark:text-zinc-400">p.{source.pageNumber}</Text>
+                  <View className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 dark:bg-emerald-400/15">
+                    <Text className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
+                      {Math.round(source.similarityScore * 100)}%
+                    </Text>
+                  </View>
                 </PressableScale>
               </Animated.View>
             ))}

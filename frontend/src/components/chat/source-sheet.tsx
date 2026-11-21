@@ -100,8 +100,8 @@ export function SourceSheet({ source, onClose }: SourceSheetProps) {
             <View className="mt-4 gap-1.5">
               <View className="flex-row items-center justify-between">
                 <Text className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Semantic similarity</Text>
-                <Text className="text-xs font-semibold text-brand-600 dark:text-brand-300">
-                  {Math.round(visible.similarityScore * 100)}%
+                <Text className="text-xs font-semibold text-emerald-600 dark:text-emerald-300">
+                  {Math.round(visible.similarityScore * 100)}% match
                 </Text>
               </View>
               <ProgressBar progress={visible.similarityScore} />

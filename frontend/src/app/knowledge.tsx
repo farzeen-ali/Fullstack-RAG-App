@@ -73,7 +73,15 @@ export default function KnowledgeScreen() {
   };
 
   const header = (
-    <View className="gap-4 pb-4">
+      <View className="gap-4 pb-4">
+        {kb.error ? (
+          <View className="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 dark:border-rose-400/25 dark:bg-rose-400/10">
+            <Text className="text-xs leading-5 text-rose-800 dark:text-rose-100">{kb.error}</Text>
+            <Text className="mt-1 text-[11px] text-rose-700/90 dark:text-rose-200/80">
+              API: {BACKEND_URL} — must match the LAN IP Nest prints on startup.
+            </Text>
+          </View>
+        ) : null}
       <PressableScale
         scaleTo={0.98}
         onPress={pickDocument}

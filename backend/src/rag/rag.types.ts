@@ -1,6 +1,6 @@
 export type DocumentStatus = 'processing' | 'ready' | 'failed';
 
-/** Authoritative document metadata (vectors live in Pinecone). */
+/** Authoritative document metadata (vectors live in ChromaDB). */
 export interface StoredDocument {
   id: string;
   name: string;

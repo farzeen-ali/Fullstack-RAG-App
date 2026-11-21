@@ -5,10 +5,14 @@ import type { KnowledgeDocument } from '@/lib/types';
 
 const POLL_INTERVAL_MS = 2000;
 
+export type UploadPhase = 'sending' | 'processing';
+
 export interface UploadTask {
   id: string;
   name: string;
+  /** 0..1 when the platform reports bytes sent; stays 0 on many phones until the response returns. */
   progress: number;
+  phase: UploadPhase;
   error?: string;
 }
 
@@ -86,11 +90,21 @@ export function KnowledgeBaseProvider({ children }: { children: ReactNode }) {
   const upload = useCallback(
     async (file: UploadFile) => {
       const taskId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      setUploads((current) => [...current, { id: taskId, name: file.name, progress: 0 }]);
+      setUploads((current) => [
+        ...current,
+        { id: taskId, name: file.name, progress: 0, phase: 'sending' },
+      ]);
 
-      const handle = uploadDocument(file, (progress) =>
-        setUploads((current) => current.map((t) => (t.id === taskId ? { ...t, progress } : t))),
-      );
+      const handle = uploadDocument(file, {
+        onProgress: (progress) =>
+          setUploads((current) =>
+            current.map((t) => (t.id === taskId ? { ...t, progress } : t)),
+          ),
+        onPhase: (phase) =>
+          setUploads((current) =>
+            current.map((t) => (t.id === taskId ? { ...t, phase } : t)),
+          ),
+      });
 
       try {
         const document = await handle.promise;

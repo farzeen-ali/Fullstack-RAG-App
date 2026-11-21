@@ -7,11 +7,24 @@ import { networkInterfaces } from 'node:os';
 import { AppModule } from './app.module';
 import { EnvironmentVariables } from './config/env.validation';
 
-function lanAddresses(): string[] {
-  return Object.values(networkInterfaces())
+/** Prefer real LAN Wi‑Fi/Ethernet; skip Hyper‑V, WSL, and VirtualBox host-only IPs. */
+function phoneReachableAddresses(): { recommended: string[]; other: string[] } {
+  const all = Object.values(networkInterfaces())
     .flat()
     .filter((net) => net && net.family === 'IPv4' && !net.internal)
     .map((net) => net!.address);
+
+  const skip = (ip: string) =>
+    ip.startsWith('169.254.') ||
+    ip === '192.168.56.1' ||
+    ip.startsWith('172.25.') ||
+    ip.startsWith('172.17.');
+
+  const recommended = all.filter(
+    (ip) => !skip(ip) && /^192\.168\.|^10\.|^172\.(1[6-9]|2\d|3[0-1])\./.test(ip),
+  );
+  const other = all.filter((ip) => !recommended.includes(ip));
+  return { recommended, other };
 }
 
 async function bootstrap() {
@@ -42,9 +55,25 @@ async function bootstrap() {
   await app.listen(port, host);
 
   logger.log(`DocuMind AI backend listening on http://${host}:${port}`);
-  for (const address of lanAddresses()) {
+
+  const { recommended, other } = phoneReachableAddresses();
+  if (recommended.length > 0) {
     logger.log(
-      `  Phone/Expo Go URL -> EXPO_PUBLIC_BACKEND_URL=http://${address}:${port}`,
+      `  Use Wi‑Fi IP in frontend/.env (phone must be on same network):`,
+    );
+    for (const address of recommended) {
+      logger.log(
+        `    EXPO_PUBLIC_BACKEND_URL=http://${address}:${port}  ← recommended`,
+      );
+    }
+  } else {
+    logger.warn(
+      'No typical Wi‑Fi/Ethernet IPv4 found. Run ipconfig and set EXPO_PUBLIC_BACKEND_URL manually.',
+    );
+  }
+  for (const address of other) {
+    logger.log(
+      `    (virtual/VPN) http://${address}:${port} — usually not reachable from your phone`,
     );
   }
 }

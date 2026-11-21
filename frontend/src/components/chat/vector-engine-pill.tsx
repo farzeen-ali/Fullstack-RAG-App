@@ -75,9 +75,9 @@ export function VectorEnginePill({
             { width: 8, height: 8, borderRadius: 4, backgroundColor: dotColor },
           ]}
         />
-        <Ionicons name="server-outline" size={12} color={isDark ? palette.brand : palette.brand} />
+        <Ionicons name="layers-outline" size={12} color={palette.success} />
         <Text className="text-[11px] font-semibold tracking-wide text-zinc-700 dark:text-zinc-200">
-          Pinecone Vector DB
+          ChromaDB Local
         </Text>
         <Text className="text-[11px] text-zinc-500 dark:text-zinc-400">·</Text>
         <Text className="text-[11px] font-medium text-brand-600 dark:text-brand-300">{status}</Text>

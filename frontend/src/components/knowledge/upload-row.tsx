@@ -9,7 +9,8 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 export function UploadRow({ task, onDismiss }: { task: UploadTask; onDismiss: () => void }) {
   const { palette } = useAppTheme();
   const failed = task.error !== undefined;
-  const uploaded = task.progress >= 1;
+  const onServer = task.phase === 'processing' || task.progress >= 1;
+  const indeterminate = !failed && !onServer && task.progress < 0.01;
 
   return (
     <Animated.View entering={FadeInDown.springify().damping(18)} exiting={FadeOut.duration(150)}>
@@ -38,11 +39,13 @@ export function UploadRow({ task, onDismiss }: { task: UploadTask; onDismiss: ()
           <Text className="text-xs leading-5 text-rose-700 dark:text-rose-200">{task.error}</Text>
         ) : (
           <>
-            <ProgressBar progress={task.progress} />
+            <ProgressBar progress={indeterminate ? 0 : task.progress} indeterminate={indeterminate} />
             <Text className="text-xs text-zinc-500 dark:text-zinc-400">
-              {uploaded
-                ? 'Extracting text and chunking…'
-                : `Uploading ${Math.round(task.progress * 100)}%`}
+              {onServer
+                ? 'Server is extracting text and chunking…'
+                : indeterminate
+                  ? 'Sending file to DocuMind… (stay on this screen)'
+                  : `Uploading ${Math.round(task.progress * 100)}%`}
             </Text>
           </>
         )}

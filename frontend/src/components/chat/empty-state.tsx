@@ -36,7 +36,7 @@ export function EmptyState({ documents, hasDocuments, onSuggestion, onUpload }: 
           Ask your documents anything
         </Text>
         <Text className="mt-2 max-w-[320px] text-center text-[15px] leading-6 text-zinc-500 dark:text-zinc-400">
-          Semantic search via Pinecone, streamed answers with exact page citations.
+          Local ChromaDB semantic search, streamed answers with page citations and match scores.
         </Text>
       </Animated.View>
 

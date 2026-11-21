@@ -2,10 +2,10 @@ import { useColorScheme } from 'nativewind';
 
 const palettes = {
   light: {
-    background: '#F4F6FB',
+    background: '#F3F5FA',
     surface: '#FFFFFF',
-    surfaceGlass: 'rgba(255,255,255,0.78)',
-    border: '#E2E6F0',
+    surfaceGlass: 'rgba(255,255,255,0.82)',
+    border: '#E4E8F2',
     text: '#0B1020',
     muted: '#5A6378',
     subtle: '#8B94A8',
@@ -18,10 +18,10 @@ const palettes = {
     gradientEnd: '#A78BFA',
   },
   dark: {
-    background: '#080A10',
-    surface: '#12151E',
-    surfaceGlass: 'rgba(18,21,30,0.82)',
-    border: '#252B3A',
+    background: '#07090F',
+    surface: '#11141D',
+    surfaceGlass: 'rgba(17,20,29,0.86)',
+    border: '#242A38',
     text: '#F3F5FA',
     muted: '#9CA6BB',
     subtle: '#6E7890',

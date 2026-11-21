@@ -32,7 +32,7 @@ function MessageBubbleImpl({ message, onSourcePress }: MessageBubbleProps) {
   if (message.role === 'user') {
     return (
       <Animated.View
-        entering={isNew ? FadeInRight.springify().damping(18).mass(0.8) : undefined}
+        entering={isNew ? FadeInRight.springify().damping(17).mass(0.75).stiffness(120) : undefined}
         style={{ alignSelf: 'flex-end', maxWidth: '86%' }}>
         <LinearGradient
           colors={[palette.gradientStart, palette.gradientEnd]}
@@ -49,7 +49,7 @@ function MessageBubbleImpl({ message, onSourcePress }: MessageBubbleProps) {
 
   return (
     <Animated.View
-      entering={isNew ? FadeInLeft.springify().damping(18).mass(0.8) : undefined}
+      entering={isNew ? FadeInLeft.springify().damping(17).mass(0.75).stiffness(120) : undefined}
       style={{ alignSelf: 'stretch' }}>
       <AssistantBody message={message} onSourcePress={onSourcePress} />
     </Animated.View>

@@ -57,7 +57,7 @@ export function ChatHeader({
               DocuMind AI
             </Text>
             <Text className="text-[12px] text-zinc-500 dark:text-zinc-400">
-              Grounded answers · Pinecone retrieval
+              Grounded answers · ChromaDB retrieval
             </Text>
           </View>
           <IconButton

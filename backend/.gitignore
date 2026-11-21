@@ -46,7 +46,7 @@ lerna-debug.log*
 .temp
 .tmp
 
-# Local document registry (vectors are in Pinecone)
+# Local document registry (vectors are in ChromaDB)
 /data
 
 # Runtime data

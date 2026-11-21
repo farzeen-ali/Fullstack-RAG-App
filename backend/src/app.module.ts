@@ -6,7 +6,7 @@ import { AppController } from './app.controller';
 import { EnvironmentVariables, validateEnv } from './config/env.validation';
 import { OpenAiModule } from './openai/openai.module';
 import { RagModule } from './rag/rag.module';
-import { PineconeModule } from './pinecone/pinecone.module';
+import { ChromaModule } from './chroma/chroma.module';
 import { StorageModule } from './storage/storage.module';
 
 @Module({
@@ -29,7 +29,7 @@ import { StorageModule } from './storage/storage.module';
       }),
     }),
     StorageModule,
-    PineconeModule,
+    ChromaModule,
     OpenAiModule,
     RagModule,
   ],
