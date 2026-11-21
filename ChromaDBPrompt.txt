@@ -1,0 +1,41 @@
+You are an elite Principal Full-Stack AI Engineer & UI/UX Architect specializing in NestJS, ChromaDB Vector Database, OpenAI APIs, React Native Expo Router, NativeWind, and React Native Reanimated.
+
+Context & Existing Workspace:
+I have an existing full-stack RAG mobile application inside my monorepo workspace (`backend/` with NestJS and `frontend/` with React Native Expo Router, NativeWind, and Reanimated). Currently, the backend uses Pinecone Vector Database for vector storage and semantic search.
+
+Objective:
+1. Migrate the Vector Database layer completely from Pinecone to **ChromaDB** (`chromadb` JS/TS client connecting to a local persistent ChromaDB server) while preserving all existing RAG features, token optimizations, and OWASP LLM Top 10 security guardrails.
+2. Elevate the frontend UI/UX to an even cleaner, ultra-polished, flagship mobile AI experience.
+
+---
+
+### 1. VECTOR DATABASE MIGRATION (`backend/` - Pinecone ➔ ChromaDB):
+- **Remove Pinecone Dependencies:** Cleanly uninstall `@pinecone-database/pinecone`, remove Pinecone initialization logic, and remove Pinecone environment variables from `backend/.env`.
+- **Integrate ChromaDB (`chromadb` Node/TypeScript SDK):**
+  - Install and configure the official `chromadb` client package in `backend/` to connect to the local ChromaDB HTTP server (configurable via `CHROMA_URL=http://localhost:8000` and `CHROMA_COLLECTION_NAME=documind_rag` inside `backend/.env`).
+  - Automatically initialize or retrieve the target Chroma collection (`getOrCreateCollection`) configured with cosine distance (`"hnsw:space": "cosine"`).
+- **Ingestion & Retrieval Pipeline:**
+  - `POST /rag/upload`: Chunk uploaded PDFs (~600 characters with 100-character overlap), generate vector embeddings via OpenAI `text-embedding-3-small`, and upsert IDs, embeddings, raw document chunks, and metadata (`documentId`, `documentName`, `pageNumber`, `chunkIndex`) into the ChromaDB collection.
+  - `GET /rag/documents` & `DELETE /rag/documents/:id`: List active indexed documents and cleanly delete all vector chunks matching a specific `documentId` using ChromaDB metadata filtering (`where: { documentId }`).
+  - `POST /rag/chat`: Embed user query via `text-embedding-3-small`, query ChromaDB (`nResults: 4`), convert distance to similarity score and filter out low-relevance matches (`similarity > 0.72`), wrap retrieved text snippets inside strict `<retrieved_context>` XML delimiters, and stream the grounded answer with exact source citations (`documentName`, `pageNumber`, `snippet`, `similarityScore`).
+- **Preserve Existing Cost & Security Engines:**
+  - Keep the Zero-Token Conversational Intent Router (0 OpenAI/ChromaDB calls for greetings like "hi", "hello", "thanks"), normalized query caching, OWASP LLM Top 10 prompt injection sanitization, and `@nestjs/throttler` rate limiting intact.
+
+---
+
+### 2. FRONTEND UI/UX UPGRADE (`frontend/` - Flagship Polish):
+- **Refined Visual Hierarchy & Theme (NativeWind):**
+  - Polish the Dark Mode and Light Mode design system with smooth contrast, subtle card elevation, sleek pill badges, and refined typography.
+  - Update the header **Vector Engine Status Pill** to display `ChromaDB Local • Active` alongside live indexed document and chunk counters.
+- **Fluid Micro-Interactions (React Native Reanimated):**
+  - Enhance message bubble entrance animations, add a pulsing emerald status dot while querying ChromaDB, smooth expandable **Source Citation Chips** with similarity match percentages, and an interactive bottom-sheet modal to inspect exact PDF text excerpts.
+  - Ensure zero keyboard overlap on both iOS and Android devices when typing in the chat input bar.
+
+---
+
+Deliverables:
+1. Cleanly refactored, complete, non-truncated TypeScript code for both `backend/` and `frontend/`.
+2. Update `README.md` at the root of the workspace with a dedicated, beginner-friendly **ChromaDB Setup & Run Guide** that clearly includes:
+   - Step 1: Installing ChromaDB using `pip` (`pip install chromadb`), plus alternative `poetry` (`poetry add chromadb`) and `uv` (`uv pip install chromadb`) commands.
+   - Step 2: How to start the persistent local ChromaDB server (`chroma run --path ./chroma_data --port 8000`) and verify it is running, along with a quick Python client verification snippet (`import chromadb; chroma_client = chromadb.HttpClient(host='localhost', port=8000)`).
+   - Step 3: Exact `npm uninstall` / `npm install` commands for the NestJS backend, updated `.env.example` templates, and step-by-step instructions to run ChromaDB, NestJS, and Expo Go together on a physical phone.
